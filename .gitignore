@@ -1,0 +1,41 @@
+# ── Gradle / Android Studio ──────────────────────────────
+.gradle/
+.kotlin/
+build/
+app/build/
+local.properties
+.idea/
+*.impl
+*.iml
+captures/
+.externalNativeBuild/
+.cxx/
+*.hprof
+
+# ── Секреты и подпись APK (НИКОГДА не публиковать) ───────
+.env
+keystore/
+*.jks
+*.keystore
+*.pem
+*.p12
+
+# ── Сборки ───────────────────────────────────────────────
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# ── Сгенерировано сборкой (web/ — источник истины) ───────
+app/src/main/assets/web/
+
+# ── остатки npm-установки material-web (в рантайме не нужны) ──
+web/lib/*.tgz
+web/lib/**/custom-elements.json
+
+# ── Мусор ────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+*~

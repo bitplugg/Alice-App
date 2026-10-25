@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#0a0d12">
+<title>Alice-App · Станция Лайт</title>
+<link rel="stylesheet" href="styles.css">
+<script type="importmap">
+{
+  "imports": {
+    "lit": "./lib/lit/index.js",
+    "lit/": "./lib/lit/",
+    "lit-html": "./lib/lit-html/lit-html.js",
+    "lit-html/": "./lib/lit-html/",
+    "lit-element": "./lib/lit-element/index.js",
+    "lit-element/": "./lib/lit-element/",
+    "@lit/reactive-element": "./lib/@lit/reactive-element/reactive-element.js",
+    "@lit/reactive-element/": "./lib/@lit/reactive-element/",
+    "@lit/context": "./lib/@lit/context/index.js",
+    "@lit/context/": "./lib/@lit/context/",
+    "tslib": "./lib/tslib/tslib.es6.mjs",
+    "@material/web/": "./lib/material-web/"
+  }
+}
+</script>
+<script>
+/* ловушка ошибок загрузки — покажем их прямо на экране */
+window.__errs = [];
+window.__showErrs = function () {
+  if (!window.__errs.length || window.__appStarted) return;
+  var paint = function () {
+    var d = document.getElementById('__dbg');
+    if (!d) { d = document.createElement('div'); d.id = '__dbg'; document.body.appendChild(d); }
+    d.textContent = 'ОШИБКИ ЗАГРУЗКИ:\n' + window.__errs.join('\n');
+  };
+  document.body ? paint() : document.addEventListener('DOMContentLoaded', paint);
+};
+window.addEventListener('error', function (e) {
+  var t = e.target;
+  var isScript = t && t.tagName === 'SCRIPT';
+  // ошибки загрузки «картинок/стилей» (например, отладочный hold-img) неинтересны
+  if (!isScript && !e.message) return;
+  var m = e.message || (t && (t.src || t.href)) || 'error';
+  window.__errs.push(m); window.__showErrs();
+}, true);
+window.addEventListener('unhandledrejection', function (e) {
+  var r = e.reason || {};
+  window.__errs.push('promise: ' + (r.stack || r.message || r)); window.__showErrs();
+});
+setTimeout(function () { window.__showErrs(); }, 4000);
+/* отладка: ?hold — держим событие load, пока API отвечает (для скриншотов) */
+if (location.search.indexOf('hold') !== -1) {
+  document.write('<img src="/cgi-bin/api.sh?a=slow" alt="" style="display:none">');
+}
+</script>
+<style>#__dbg{position:fixed;inset:8px;z-index:99999;background:#3b0d10;color:#ffd7da;
+  padding:12px;font:12px/1.5 monospace;white-space:pre-wrap;border-radius:12px;overflow:auto}</style>
+</head>
+<body>
+
+<!-- ═══════════ ЭКРАН: подключение ═══════════ -->
+<section class="screen center" id="s-conn">
+  <div class="conn">
+    <div class="logo">A</div>
+    <h1>Alice-App</h1>
+    <p class="sub">Панель управления Яндекс Станцией Лайт</p>
+    <md-outlined-text-field id="ip" label="IP колонки" inputmode="decimal"
+      value="" autocomplete="off" class="wide"></md-outlined-text-field>
+    <div class="row">
+      <md-filled-button id="btn_connect">Подключиться</md-filled-button>
+      <md-outlined-button id="btn_find">Найти в сети</md-filled-button>
+    </div>
+    <div id="find_log" class="mono log"></div>
+  </div>
+</section>
+
+<!-- ═══════════ ЭКРАН: PIN ═══════════ -->
+<section class="screen center" id="s-pin" hidden>
+  <div class="conn">
+    <div class="ico xl" style="--i:url(icons/palette.svg)"></div>
+    <h2 id="pin_title">Введите PIN-код</h2>
+    <p class="sub" id="pin_sub">Защита от посторонних в вашей сети</p>
+    <md-outlined-text-field id="pin" type="password" label="PIN-код" maxlength="10"
+      inputmode="numeric" class="wide"></md-outlined-text-field>
+    <md-outlined-text-field id="pin2" type="password" label="Повторите PIN" maxlength="10"
+      inputmode="numeric" class="wide" hidden></md-outlined-text-field>
+    <md-filled-button id="btn_pin" class="wide">Войти</md-filled-button>
+    <p class="err" id="pin_err"></p>
+  </div>
+</section>
+
+<!-- ═══════════ ЭКРАН: приложение ═══════════ -->
+<section class="screen" id="s-app" hidden>
+  <header class="top">
+    <div class="who">
+      <span class="ico" style="--i:url(icons/router.svg)"></span>
+      <div><b>Alice-App</b><small id="h_ip">—</small></div>
+    </div>
+    <div class="row">
+      <span class="pill" id="h_shz" hidden>shizuku</span>
+      <span class="pill" id="h_root">root</span>
+      <md-outlined-icon-button id="btn_refresh" title="Обновить">
+        <span class="ico" style="--i:url(icons/refresh.svg)"></span>
+      </md-outlined-icon-button>
+    </div>
+  </header>
+
+  <main id="pages">
+
+    <!-- ── СВЕЧЕНИЕ ── -->
+    <div class="page" id="p-led" hidden>
+      <div class="rings" id="rings">
+        <div class="ring" data-z="1"><i></i><span>1</span></div>
+        <div class="ring" data-z="2"><i></i><span>2</span></div>
+        <div class="ring" data-z="3"><i></i><span>3</span></div>
+      </div>
+      <div class="card">
+        <div class="row between">
+          <span class="lbl">Цвет</span>
+          <input type="color" id="led_color" value="#00a2ff">
+        </div>
+        <div class="chips" id="zones">
+          <md-filter-chip selected data-z="all">Все</md-filter-chip>
+          <md-filter-chip data-z="1">Кольцо 1</md-filter-chip>
+          <md-filter-chip data-z="2">Кольцо 2</md-filter-chip>
+          <md-filter-chip data-z="3">Кольцо 3</md-filter-chip>
+        </div>
+        <div class="lbl">Палитра из подсветки</div>
+        <div class="palette" id="palette"></div>
+        <div class="row">
+          <md-filled-button id="led_apply" class="grow">Залить цвет</md-filled-button>
+          <md-outlined-button id="led_off">Погасить</md-outlined-button>
+        </div>
+        <div class="row between slider-row">
+          <span class="lbl">Яркость</span>
+          <md-slider id="led_bri" min="0" max="100" value="100" class="grow"></md-slider>
+        </div>
+      </div>
+      <div class="card">
+        <b>Анимации прошивки</b>
+        <div class="row">
+          <md-outlined-select id="led_pat" class="grow"></md-outlined-select>
+          <md-filled-button id="led_pat_play">Играть</md-filled-button>
+          <md-outlined-button id="led_pat_stop">Стоп</md-outlined-button>
+        </div>
+        <div class="sub">33 готовых анимации из /system/vendor/quasar/ledpatterns (*.led)</div>
+      </div>
+    </div>
+
+    <!-- ── ПАКЕТЫ ── -->
+    <div class="page" id="p-pkg" hidden>
+      <div class="card">
+        <div class="row">
+          <md-outlined-text-field id="q" label="Поиск пакета (yse)" class="grow"></md-outlined-text-field>
+          <md-filled-button id="q_go">Найти</md-filled-button>
+        </div>
+        <div class="spin" hidden><md-circular-progress indeterminate></md-circular-progress></div>
+        <div id="q_res" class="list"></div>
+      </div>
+      <div class="card">
+        <div class="row between">
+          <b>Установлено</b>
+          <md-text-button id="pkg_reload">Обновить</md-text-button>
+        </div>
+        <div id="pkg_list" class="list"></div>
+      </div>
+      <div class="card">
+        <b>Журнал установки</b>
+        <pre id="yse_log" class="mono">—</pre>
+        <md-text-button id="yse_log_up">Обновить журнал</md-text-button>
+      </div>
+    </div>
+
+    <!-- ── ЗВУКИ ── -->
+    <div class="page" id="p-snd" hidden>
+      <div class="card">
+        <b>Файлы /data/sounds</b>
+        <div id="snd_list" class="list"></div>
+      </div>
+      <div class="card">
+        <md-outlined-text-field id="snd_url" label="Ссылка на файл или поток" class="wide"></md-outlined-text-field>
+        <div class="row">
+          <md-filled-button id="snd_play_url" class="grow">Играть</md-filled-button>
+          <md-outlined-button id="snd_stop">Стоп</md-outlined-button>
+        </div>
+        <div class="row between slider-row">
+          <span class="lbl">Громкость</span>
+          <md-slider id="vol" min="0" max="100" value="50" class="grow"></md-slider>
+        </div>
+        <div class="row between">
+          <span class="lbl">Чайм при включении</span>
+          <md-switch id="chime"></md-switch>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── USB ── -->
+    <div class="page" id="p-usb" hidden>
+      <div class="card">
+        <b>USB Host (OTG)</b>
+        <div class="row">
+          <span class="pill" id="otg_pill">…</span>
+          <span class="pill" id="otg_disks" hidden>0 дисков</span>
+        </div>
+        <div class="lbl">Автозапуск при включении колонки</div>
+        <div class="chips" id="otg_auto">
+          <md-filter-chip selected data-auto="1">Включён</md-filter-chip>
+          <md-filter-chip data-auto="0">Выключен</md-filter-chip>
+        </div>
+        <div class="row">
+          <md-filled-button id="otg_start" class="grow">Включить Host сейчас</md-filled-button>
+          <md-outlined-button id="otg_log">Лог</md-outlined-button>
+        </div>
+        <pre id="otg_out" class="mono" hidden>—</pre>
+        <div class="sub">Рантайм: регистры PHY + драйверы, перезагрузка возвращает режим устройства. Для флешек — хаб с питанием.</div>
+      </div>
+      <div class="card">
+        <b>Устройства</b>
+        <div id="usb_list" class="list"></div>
+        <div class="lbl">Звуковые карты</div>
+        <pre id="usb_cards" class="mono">—</pre>
+      </div>
+      <div class="card">
+        <b>Маршрут звука</b>
+        <div class="chips" id="route">
+          <md-filter-chip selected data-to="speaker">Колонка</md-filter-chip>
+          <md-filter-chip data-to="usb">USB-аудио</md-filter-chip>
+        </div>
+        <div class="row">
+          <md-outlined-button id="usb_mount" class="grow">Смонтировать диск</md-outlined-button>
+          <md-outlined-button id="usb_umount" class="grow">Отмонтировать</md-outlined-button>
+        </div>
+        <pre id="usb_out" class="mono">—</pre>
+      </div>
+    </div>
+
+    <!-- ── СИСТЕМА ── -->
+    <div class="page" id="p-sys" hidden>
+      <div class="card">
+        <div class="grid" id="sys_grid"></div>
+      </div>
+      <div class="card">
+        <div class="row">
+          <md-outlined-button id="reboot" class="grow">Перезагрузить колонку</md-outlined-button>
+          <md-outlined-button id="sys_ports" class="grow">Порты</md-outlined-button>
+        </div>
+        <div class="chips" id="logs">
+          <md-filter-chip selected data-log="dmesg">dmesg</md-filter-chip>
+          <md-filter-chip data-log="yse">yse</md-filter-chip>
+          <md-filter-chip data-log="api">api</md-filter-chip>
+        </div>
+        <pre id="sys_log" class="mono">—</pre>
+      </div>
+    </div>
+
+    <!-- ── КОНСОЛЬ ── -->
+    <div class="page" id="p-shell" hidden>
+      <div class="card term-card">
+        <div class="chips" id="sh_target">
+          <md-filter-chip selected data-t="speaker">колонка</md-filter-chip>
+          <md-filter-chip data-t="phone">телефон (shizuku)</md-filter-chip>
+        </div>
+        <pre id="sh_out" class="mono term"></pre>
+        <div class="row">
+          <md-outlined-text-field id="sh_cmd" label="root@yandex-station-lite ~ $"
+            class="grow" autocomplete="off"></md-outlined-text-field>
+          <md-filled-button id="sh_go">▶</md-filled-button>
+        </div>
+        <md-text-button id="sh_clear">Очистить</md-text-button>
+      </div>
+    </div>
+
+  </main>
+
+  <nav id="navbar">
+    <md-tabs id="nav">
+      <md-primary-tab data-page="p-led" selected hasIcon><span class="ico" slot="icon" style="--i:url(icons/lightbulb_2.svg)"></span>Свет</md-primary-tab>
+      <md-primary-tab data-page="p-pkg" hasIcon><span class="ico" slot="icon" style="--i:url(icons/inventory_2.svg)"></span>Пакеты</md-primary-tab>
+      <md-primary-tab data-page="p-snd" hasIcon><span class="ico" slot="icon" style="--i:url(icons/volume_up.svg)"></span>Звук</md-primary-tab>
+      <md-primary-tab data-page="p-usb" hasIcon><span class="ico" slot="icon" style="--i:url(icons/usb.svg)"></span>USB</md-primary-tab>
+      <md-primary-tab data-page="p-sys" hasIcon><span class="ico" slot="icon" style="--i:url(icons/memory.svg)"></span>Система</md-primary-tab>
+      <md-primary-tab data-page="p-shell" hasIcon><span class="ico" slot="icon" style="--i:url(icons/terminal.svg)"></span>Консоль</md-primary-tab>
+    </md-tabs>
+  </nav>
+</section>
+
+<div id="toast"></div>
+
+<md-dialog id="dlg">
+  <div slot="headline" id="dlg_title">Подтвердите</div>
+  <div slot="content" id="dlg_text">—</div>
+  <div slot="actions">
+    <md-text-button id="dlg_no">Отмена</md-text-button>
+    <md-filled-button id="dlg_yes">Ок</md-filled-button>
+  </div>
+</md-dialog>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
