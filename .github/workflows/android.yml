@@ -31,6 +31,7 @@ jobs:
 
     env:
       HAS_KEYSTORE: ${{ secrets.ALICE_KEYSTORE_B64 != '' && 'true' || 'false' }}
+      ALICE_KEYSTORE_B64: ${{ secrets.ALICE_KEYSTORE_B64 }}
       ALICE_KS_PASSWORD: ${{ secrets.ALICE_KS_PASSWORD }}
       ALICE_KS_ALIAS: ${{ secrets.ALICE_KS_ALIAS }}
       ALICE_KS_KEY_PASSWORD: ${{ secrets.ALICE_KS_KEY_PASSWORD }}
