@@ -40,9 +40,15 @@ err() { printf '{"ok":0,"error":"%s"}\n' "$(je "$1")"; }
 
 run() { out=$("$@" 2>&1); rc=$?; printf '{"ok":1,"rc":%d,"out":"%s"}' "$rc" "$(je "$out")"; }
 
-# ---------- аутентификация ----------
+# ---------- доступ ----------
+#  PIN НЕОБЯЗАТЕЛЕН:
+#    его нет  → панель открыта (для своей сети), токен не нужен;
+#    есть     → вход по PIN (auth), дальше все действия — по токену.
 ACTION=$(g a)
 TOK=$(g t)
+
+newtok() { head -c 16 /dev/urandom | od -An -tx1 | tr -d ' \n'; }
+setpin()  { printf '%s' "$1" > "$PIN_FILE"; chmod 600 "$PIN_FILE"; }
 
 # отладочный «медленный» запрос — держит load для скриншотов
 [ "$ACTION" = "slow" ] && { sleep 2; ok '"s":1'; exit 0; }
@@ -56,38 +62,50 @@ TOK=$(g t)
   exit 0
 }
 
-[ -f "$PIN_FILE" ] || {
-  [ "$ACTION" = "setup" ] || { err "pin_not_set"; exit 0; }
+# --- вход: с PIN или без него (PIN необязателен) ---
+if [ "$ACTION" = "auth" ]; then
+  if [ -f "$PIN_FILE" ]; then
+    PIN=$(g pin)
+    [ "$(cat "$PIN_FILE")" = "$PIN" ] || { err "bad_pin"; exit 0; }
+  fi
+  TOK=$(newtok); printf '%s' "$TOK" > "$TOKEN_FILE"; chmod 600 "$TOKEN_FILE"
+  ok "\"token\":\"$TOK\""; exit 0
+fi
+
+# --- поставить PIN, когда его ещё нет (первый вход) ---
+if [ "$ACTION" = "setup" ]; then
+  [ -f "$PIN_FILE" ] && { err "pin_exists"; exit 0; }
   PIN=$(g pin)
   [ ${#PIN} -ge 4 ] || { err "pin_too_short"; exit 0; }
-  printf '%s' "$PIN" > "$PIN_FILE"; chmod 600 "$PIN_FILE"
-  TOK=$(head -c 16 /dev/urandom | od -An -tx1 | tr -d ' \n')
-  printf '%s' "$TOK" > "$TOKEN_FILE"; chmod 600 "$TOKEN_FILE"
+  setpin "$PIN"
+  TOK=$(newtok); printf '%s' "$TOK" > "$TOKEN_FILE"; chmod 600 "$TOKEN_FILE"
   ok "\"token\":\"$TOK\""; exit 0
-}
+fi
 
-[ "$ACTION" = "auth" ] || {
+# --- PIN включён → без токена дальше не пускаем ---
+if [ -f "$PIN_FILE" ]; then
   [ -n "$TOK" ] && [ -f "$TOKEN_FILE" ] && [ "$(cat "$TOKEN_FILE")" = "$TOK" ] || {
     err "unauthorized"; exit 0; }
-}
+fi
 
 case "$ACTION" in
 
-# --- авторизация ---
-auth)
-  PIN=$(g pin)
-  [ "$(cat "$PIN_FILE")" = "$PIN" ] || { err "bad_pin"; exit 0; }
-  TOK=$(head -c 16 /dev/urandom | od -An -tx1 | tr -d ' \n')
-  printf '%s' "$TOK" > "$TOKEN_FILE"
-  ok "\"token\":\"$TOK\"";;
-
 # --- смена PIN ---
 pin.set)
+  [ -f "$PIN_FILE" ] || { err "pin_not_set"; exit 0; }
   OLD=$(g old); NEW=$(g new)
   [ "$(cat "$PIN_FILE")" = "$OLD" ] || { err "bad_pin"; exit 0; }
   [ ${#NEW} -ge 4 ] || { err "pin_too_short"; exit 0; }
-  printf '%s' "$NEW" > "$PIN_FILE"
+  setpin "$NEW"
   ok '"changed":1';;
+
+# --- отключить PIN: панель снова открыта для домашней сети ---
+pin.clear)
+  [ -f "$PIN_FILE" ] || { err "pin_not_set"; exit 0; }
+  OLD=$(g old)
+  [ "$(cat "$PIN_FILE")" = "$OLD" ] || { err "bad_pin"; exit 0; }
+  rm -f "$PIN_FILE" "$TOKEN_FILE"
+  ok '"cleared":1';;
 
 # ---------- LED ----------
 led.get)

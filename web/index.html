@@ -27,8 +27,10 @@
 <script>
 /* ловушка ошибок загрузки — покажем их прямо на экране */
 window.__errs = [];
+/* ?dbg — показывать ошибки и после запуска приложения (удобно при отладке UI) */
+window.__dbgMode = location.search.indexOf('dbg') !== -1;
 window.__showErrs = function () {
-  if (!window.__errs.length || window.__appStarted) return;
+  if (!window.__errs.length || (window.__appStarted && !window.__dbgMode)) return;
   var paint = function () {
     var d = document.getElementById('__dbg');
     if (!d) { d = document.createElement('div'); d.id = '__dbg'; document.body.appendChild(d); }
@@ -241,6 +243,25 @@ if (location.search.indexOf('hold') !== -1) {
         <div class="grid" id="sys_grid"></div>
       </div>
       <div class="card">
+        <div class="row between">
+          <b>Доступ к панели</b>
+          <span class="pill" id="pin_pill">…</span>
+        </div>
+        <div class="sub" id="pin_state">—</div>
+        <md-outlined-text-field id="cp_old" type="password" label="Текущий PIN" maxlength="10"
+          inputmode="numeric" class="wide" hidden></md-outlined-text-field>
+        <md-outlined-text-field id="cp_new" type="password" label="Новый PIN" maxlength="10"
+          inputmode="numeric" class="wide"></md-outlined-text-field>
+        <md-outlined-text-field id="cp_new2" type="password" label="Повторите PIN" maxlength="10"
+          inputmode="numeric" class="wide"></md-outlined-text-field>
+        <div class="row">
+          <md-filled-button id="cp_save" class="grow">Сохранить</md-filled-button>
+          <md-outlined-button id="cp_off" hidden>Отключить PIN</md-outlined-button>
+        </div>
+        <p class="err" id="cp_err"></p>
+        <div class="sub">PIN не обязателен: без него панель открыта для вашей домашней сети.</div>
+      </div>
+      <div class="card">
         <div class="row">
           <md-outlined-button id="reboot" class="grow">Перезагрузить колонку</md-outlined-button>
           <md-outlined-button id="sys_ports" class="grow">Порты</md-outlined-button>
@@ -293,6 +314,26 @@ if (location.search.indexOf('hold') !== -1) {
   <div slot="actions">
     <md-text-button id="dlg_no">Отмена</md-text-button>
     <md-filled-button id="dlg_yes">Ок</md-filled-button>
+  </div>
+</md-dialog>
+
+<!-- предложение поставить PIN при первом входе (не обязательно) -->
+<md-dialog id="dlg_pin">
+  <div slot="headline">Добавить PIN-код для входа?</div>
+  <div slot="content">
+    <p class="sub" style="text-align:left">Код защитит панель от посторонних в вашей сети.
+      Можно обойтись без него — тогда вход будет открытым для домашней сети.</p>
+    <div id="dpin_form" hidden>
+      <md-outlined-text-field id="dpin" type="password" label="PIN-код" maxlength="10"
+        inputmode="numeric" class="wide"></md-outlined-text-field>
+      <md-outlined-text-field id="dpin2" type="password" label="Повторите PIN" maxlength="10"
+        inputmode="numeric" class="wide"></md-outlined-text-field>
+      <p class="err" id="dpin_err"></p>
+    </div>
+  </div>
+  <div slot="actions">
+    <md-text-button id="dpin_skip">Не сейчас</md-text-button>
+    <md-filled-button id="dpin_go">Добавить</md-filled-button>
   </div>
 </md-dialog>
 

@@ -26,8 +26,10 @@
 | **Система** | uptime/память/диск, root, ADB/SSH, OTA off, порты, reboot, dmesg, хвост логов |
 | **Консоль** | команды с каналами **колонка** (`sh`) и **телефон (shizuku)**, пилюля `shizuku ✓/✗` |
 
-Прочее: PIN-код при первом входе, автопоиск колонки в сети (или ручной IP),
-тёмная тема Material Web, навигация по 6 вкладкам.
+Прочее: **PIN-код необязателен** — при первом входе приложение само спрашивает
+«Добавить PIN-код для входа?», отказаться можно («Не сейчас»). Поставить, сменить
+и отключить код — в «Система → Доступ к панели». Ещё: автопоиск колонки в сети
+(или ручной IP), тёмная тема Material Web, навигация по 6 вкладкам.
 
 ## Структура репозитория
 
@@ -55,7 +57,29 @@ cp .env.example .env      # и заполнить: пароли keystore
 
 Подпись — своим ключом (`keystore/alice.jks`, **не публикуется**).
 Пароли читаются из переменных окружения `ALICE_KS_*`, а при их отсутствии — из
-корневого `.env`. Без ключа соберётся debug-вариант.
+корневого `.env`. Без ключа release собирается неподписанным.
+
+### CI (GitHub Actions)
+
+`.github/workflows/android.yml` гоняется на каждый push в `main`, на PR и по
+тегу `v*`: дешёвые чеки (`sh -n speaker/*.sh`, `node --check web/app.js`),
+`assembleRelease`, проверка подписи `apksigner`, APK — артефактом.
+
+Подпись в CI — из GitHub Secrets:
+
+```bash
+gh secret set ALICE_KEYSTORE_B64 < <(base64 -w0 keystore/alice.jks)
+gh secret set ALICE_KS_PASSWORD      # пароль keystore
+gh secret set ALICE_KS_ALIAS         # alice
+gh secret set ALICE_KS_KEY_PASSWORD  # пароль ключа, если отличается
+```
+
+Без секретов workflow собирает неподписанный APK, но **не падает**.
+Релиз делается тегом:
+
+```bash
+git tag v1.1 && git push origin v1.1   # → GitHub Releases c Alice-App-1.1.apk
+```
 
 Установка на телефон:
 
@@ -92,12 +116,16 @@ scp speaker/web/*   # или tar cf - | ssh alice 'tar xf -'
 ## API колонки
 
 GET/POST `/cgi-bin/api.sh?a=<действие>&t=<токен>[&параметры]`, ответ — JSON.
-`a=ping` и `a=setup` не требуют токена; всё остальное — авторизация по токену,
-который выдаёт `a=auth` после ввода PIN (`pin.set` задаёт PIN).
+
+**PIN необязателен** (флаг `pin_set` в ответе `a=ping`):
+
+- **PIN отключён** — токен не нужен: панель открыта для твоей сети;
+- **PIN включён** — `a=auth&pin=…` выдаёт токен, все действия без него
+  (кроме `ping`/`slow`/`auth`/`setup`) отвечают `{"error":"unauthorized"}`.
 
 | Группа | Действия |
 |---|---|
-| Доступ | `ping`, `setup`, `auth`, `pin.set` |
+| Доступ | `ping`, `setup` (поставить PIN, пока его нет), `auth`, `pin.set` (смена), `pin.clear` (отключить) |
 | Светодиоды | `led.get`, `led.set`, `led.off`, `led.patterns`, `led.play`, `led.stop` |
 | Система | `sys.info`, `sys.ports`, `sys.reboot` |
 | Пакеты yse | `yse.list`, `yse.search`, `yse.install`, `yse.update`, `yse.remove`, `yse.log` |
@@ -144,9 +172,11 @@ curl 'http://192.168.1.20:8080/cgi-bin/api.sh?a=led.play&p=alice_listening&t=<т
 - **`.env`** (PIN, Wi-Fi, пароли подписи) — в `.gitignore`; см. `.env.example`.
 - **`keystore/alice.jks`** — ключ подписи APK, в git не идёт.
 - **`local.properties`**, `.gradle/`, `build/`, `app/src/main/assets/web/`, `*.apk` — тоже в `.gitignore`.
-- Веб-панель закрыта PIN → сессионным токеном; CGI отдаёт `Access-Control-Allow-Origin: *`,
-  поэтому доступ к `:8080` в твоей сети = доступ к колонке. Ставь твой домашний Wi-Fi на «гостевой»
-  или не открывай порт наружу.
+- **PIN необязателен**: без него панель — и действие `shell` — открыты для всей
+  домашней сети. Если к Wi-Fi подключаются чужие, поставь код в
+  «Система → Доступ к панели» (при включённом PIN панель закрыта сессионным токеном).
+- CGI отдаёт `Access-Control-Allow-Origin: *`, поэтому доступ к `:8080` в твоей
+  сети = доступ к колонке; порт наружу не открывай.
 
 ## Известные ограничения
 

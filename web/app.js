@@ -31,10 +31,20 @@ const state = {
   ip: '',
   token: '',
   needSetup: false,
+  pinSet: false,       // PIN не обязателен: false → панель открыта для своей сети
   zones: [],
   page: 'p-led',
   pendingLog: 'dmesg',
 };
+
+/* коды ошибок бэкенда → человеческий текст */
+const errText = e => ({
+  bad_pin:       'Неверный PIN-код',
+  pin_not_set:   'PIN-код не задан',
+  pin_exists:    'PIN уже задан — смените его ниже',
+  pin_too_short: 'Минимум 4 символа',
+  unauthorized:  'Сессия истекла — войдите заново',
+}[e] || e || 'Ошибка входа');
 
 /* ─── тост и диалог ─── */
 let toastT;
@@ -116,7 +126,7 @@ async function submitPin() {
 
   const j = await api(state.needSetup ? 'setup' : 'auth', { pin: a }, 10000)
     .catch(e => ({ ok: 0, error: e.message }));
-  if (j.ok !== 1) return void ($('#pin_err').textContent = j.error || 'Ошибка входа');
+  if (j.ok !== 1) return void ($('#pin_err').textContent = errText(j.error));
 
   state.token = j.token;
   store.set('tok:' + state.ip, state.token);
@@ -204,9 +214,56 @@ async function discover() {
 }
 
 async function afterConnect() {
-  const p = await ping();
-  setPinMode(!p.pin_set);
+  return routeAfterPing(await ping());
+}
+
+/* ─── куда идти после ping: PIN необязателен ───
+   • уже есть токен            → сразу в приложение;
+   • PIN выключен и «не сейчас» уже нажимали → тоже сразу;
+   • PIN выключен, спрашивали впервые        → диалог «Добавить PIN?»;
+   • PIN включён, токена нет   → экран ввода PIN. */
+function routeAfterPing(p) {
+  state.pinSet = !!p.pin_set;
+  if (state.token) return enterApp();
+  if (!state.pinSet) {
+    if (store.get('pinoff:' + state.ip)) return enterApp();
+    return offerOptionalPin();
+  }
+  setPinMode(false);
   showScreen('s-pin');
+}
+
+/* предложение поставить PIN при первом входе (можно пропустить) */
+function offerOptionalPin() {
+  const d = $('#dlg_pin'), go = $('#dpin_go'), skip = $('#dpin_skip'), form = $('#dpin_form');
+  let step = 0, finished = false;
+
+  form.hidden = true;
+  $('#dpin').value = ''; $('#dpin2').value = ''; $('#dpin_err').textContent = '';
+  go.textContent = 'Добавить'; go.disabled = false;
+
+  const finish = after => { finished = true; go.onclick = skip.onclick = null; d.close(); after && after(); };
+  const skipPin = () => { store.set('pinoff:' + state.ip, '1'); finish(() => enterApp()); };
+
+  skip.onclick = skipPin;
+  go.onclick = async () => {
+    if (step++ === 0) { form.hidden = false; go.textContent = 'Сохранить'; return; }
+    const a = $('#dpin').value.trim(), b = $('#dpin2').value.trim();
+    if (a.length < 4) return void ($('#dpin_err').textContent = 'Минимум 4 символа');
+    if (a !== b)      return void ($('#dpin_err').textContent = 'PIN-коды не совпадают');
+    go.disabled = true;
+    const j = await api('setup', { pin: a }, 10000).catch(e => ({ ok: 0, error: e.message }));
+    go.disabled = false;
+    if (j.ok !== 1) return void ($('#dpin_err').textContent = errText(j.error));
+    state.token = j.token; state.pinSet = true;
+    store.set('tok:' + state.ip, j.token);
+    store.set('pinoff:' + state.ip, '');
+    toast('PIN-код сохранён');
+    finish(() => enterApp());
+  };
+
+  d.addEventListener('close', () => { if (!finished) skipPin(); }, { once: true });
+  d.show();
 }
 
 async function enterApp() {
@@ -581,12 +638,63 @@ function showPage(id) {
   refreshPage();
 }
 
+/* ─── доступ к панели: включить / сменить / отключить PIN ─── */
+async function pinCard() {
+  const p = await ping().catch(() => null);
+  if (!p) return;
+  state.pinSet = !!p.pin_set;
+  const on = state.pinSet;
+  const pill = $('#pin_pill');
+  pill.textContent = on ? 'PIN включён' : 'без PIN';
+  pill.style.background = on ? '' : '#3b1417';
+  pill.style.color = on ? '' : 'var(--error)';
+  $('#pin_state').textContent = on
+    ? 'Вход в панель защищён кодом — его спросят на каждом новом устройстве.'
+    : 'PIN отключён: панель открыта для всей домашней сети.';
+  $('#cp_old').hidden = !on;
+  $('#cp_off').hidden = !on;
+  $('#cp_save').textContent = on ? 'Сменить PIN' : 'Поставить PIN';
+  for (const id of ['#cp_old', '#cp_new', '#cp_new2']) $(id).value = '';
+  $('#cp_err').textContent = '';
+}
+
+async function pinSave() {
+  const err = $('#cp_err');
+  const n = $('#cp_new').value.trim(), n2 = $('#cp_new2').value.trim();
+  err.textContent = '';
+  if (n.length < 4) return void (err.textContent = 'Минимум 4 символа');
+  if (n !== n2)     return void (err.textContent = 'PIN-коды не совпадают');
+  const params = state.pinSet ? { old: $('#cp_old').value.trim(), new: n } : { pin: n };
+  const j = await api(state.pinSet ? 'pin.set' : 'setup', params, 10000)
+    .catch(e => ({ ok: 0, error: e.message }));
+  if (j.ok !== 1) return void (err.textContent = errText(j.error));
+  if (j.token) { state.token = j.token; store.set('tok:' + state.ip, j.token); }
+  store.set('pinoff:' + state.ip, '');
+  toast('PIN-код сохранён');
+  pinCard();
+}
+
+async function pinOff() {
+  const err = $('#cp_err');
+  const old = $('#cp_old').value.trim();
+  err.textContent = '';
+  if (!old) return void (err.textContent = 'Введите текущий PIN');
+  if (!await confirmDlg('Отключить PIN?',
+      'Панель снова станет доступной для всех в вашей домашней сети.')) return;
+  const j = await api('pin.clear', { old }, 10000).catch(e => ({ ok: 0, error: e.message }));
+  if (j.ok !== 1) return void (err.textContent = errText(j.error));
+  state.token = ''; state.pinSet = false;
+  store.set('tok:' + state.ip, '');
+  toast('PIN отключён');
+  pinCard();
+}
+
 const loaders = {
   'p-led':  () => { ledGet().catch(() => {}); ledPatterns().catch(() => {}); },
   'p-pkg':  () => { pkgInstalled(); yseLog(); },
   'p-snd':  () => { sndList(); api('chime.get').then(j => { $('#chime').selected = !!j.on; }).catch(() => {}); },
   'p-usb':  () => { usbStatus().catch(() => {}); otgStatus().catch(() => {}); },
-  'p-sys':  () => { sysInfo(); sysLog(); },
+  'p-sys':  () => { sysInfo(); sysLog(); pinCard(); },
   'p-shell':() => {},
 };
 
@@ -595,7 +703,8 @@ function refreshPage() { const f = loaders[state.page]; if (f) f(); }
 function bindTabs() {
   const nav = $('#nav');
   const pick = () => {
-    const i = nav.selectedIndex ?? 0;
+    // у md-tabs свойство называется activeTabIndex (selectedIndex у него нет)
+    const i = nav.activeTabIndex ?? 0;
     const tab = $$('#nav md-primary-tab')[i];
     if (tab && tab.dataset.page) showPage(tab.dataset.page);
   };
@@ -612,6 +721,8 @@ function bind() {
   };
   $('#btn_find').onclick = discover;
   $('#btn_pin').onclick = submitPin;
+  $('#cp_save').onclick = pinSave;
+  $('#cp_off').onclick = pinOff;
   $('#pin').addEventListener('keydown', e => { if (e.key === 'Enter') submitPin(); });
 
   $('#led_apply').onclick = ledApply;
@@ -738,8 +849,7 @@ async function boot() {
       const p = await ping();
       state.ip = location.hostname || p.ip;
       state.token = store.get('tok:' + state.ip);
-      setPinMode(!p.pin_set);
-      return showScreen(state.token ? 's-app' : 's-pin'), state.token ? enterApp() : void 0;
+      return routeAfterPing(p);
     } catch { /* панель отдана не колонкой — идём в ручной ввод */ }
   }
 
