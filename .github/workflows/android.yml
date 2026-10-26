@@ -60,6 +60,10 @@ jobs:
 
       - name: Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # пакет 'tools' удалён из репозитория SDK и валит sdkmanager;
+          # ставим только лицензии — платформа/build-tools Gradle докачает сам
+          packages: ''
 
       - name: Gradle
         uses: gradle/actions/setup-gradle@v4
