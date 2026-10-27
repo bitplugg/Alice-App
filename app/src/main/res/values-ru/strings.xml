@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="app_name">Alice-App</string>
+  <string name="widget_led">LED-виджет</string>
+  <string name="widget_sound">Звук-виджет</string>
+  <string name="widget_nav">Ссылки на вкладки</string>
+  <string name="status_channel">Статус колонки</string>
+  <string name="usb_channel">USB / OTG</string>
+  <string name="packages_channel">Пакеты yse</string>
+  <string name="event_title">Alice-App · событие</string>
+</resources>

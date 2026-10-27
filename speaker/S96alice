@@ -1,0 +1,38 @@
+#!/bin/sh
+# Alice-App · автозапуск веб-API колонки (http://<ip>:8080)
+DAEMON=/opt/sbin/lighttpd
+CONF=/data/opt/alice/lighttpd.conf
+PIDF=/var/run/alice-httpd.pid
+
+start() {
+	[ -x "$DAEMON" ] || return 0
+	[ -f "$CONF" ] || return 0
+	mkdir -p /data/opt/alice/logs
+	printf 'Starting alice-httpd: '
+	if "$DAEMON" -f "$CONF" 2>>/data/opt/alice/logs/start.err; then
+		echo "OK"
+	else
+		echo "FAIL"; tail -3 /data/opt/alice/logs/start.err
+		return 1
+	fi
+}
+
+stop() {
+	printf 'Stopping alice-httpd: '
+	if [ -f "$PIDF" ]; then
+		kill "$(cat "$PIDF")" 2>/dev/null && echo "OK" || echo "FAIL"
+		rm -f "$PIDF"
+	else
+		echo "not running"
+	fi
+}
+
+case "$1" in
+	start)   start ;;
+	stop)    stop ;;
+	restart) stop; sleep 1; start ;;
+	status)  [ -f "$PIDF" ] && kill -0 "$(cat "$PIDF")" 2>/dev/null \
+		&& echo "running (pid $(cat "$PIDF"))" || echo "stopped" ;;
+	*) echo "Usage: $0 {start|stop|restart|status}" ;;
+esac
+exit 0

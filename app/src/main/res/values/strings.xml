@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="app_name">Alice-App</string>
+  <string name="widget_led">LED widget</string>
+  <string name="widget_sound">Sound widget</string>
+  <string name="widget_nav">Tab shortcuts</string>
+  <string name="status_channel">Speaker status</string>
+  <string name="usb_channel">USB / OTG</string>
+  <string name="packages_channel">Packages</string>
+  <string name="event_title">Alice-App · event</string>
+</resources>
