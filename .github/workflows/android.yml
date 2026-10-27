@@ -1,0 +1,100 @@
+# ═════════════════════════════════════════════════════════════
+#  Alice-App v2 · CI
+#  • sh -n по бэкенду (speaker/)
+#  • сборка release APK нативного Compose-приложения
+#  • проверка подписи apksigner
+#  • на теге v* — релиз с APK
+#
+#  Секреты:
+#    ALICE2_KEYSTORE_B64   base64 keystore/alice2.jks
+#    ALICE2_KS_PASSWORD    пароль keystore
+#    ALICE2_KS_ALIAS       alice2
+#    ALICE2_KS_KEY_PASSWORD пароль ключа (если ≠ паролю keystore)
+#  Без секретов собираем НЕПОДПИСАННЫЙ APK — сборка зелёная.
+# ═════════════════════════════════════════════════════════════
+
+name: android
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write   # публикация релиза по тегу
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    env:
+      HAS_KEYSTORE: ${{ secrets.ALICE2_KEYSTORE_B64 != '' && 'true' || 'false' }}
+      ALICE2_KEYSTORE_B64: ${{ secrets.ALICE2_KEYSTORE_B64 }}
+      ALICE2_KS_PASSWORD: ${{ secrets.ALICE2_KS_PASSWORD }}
+      ALICE2_KS_ALIAS: ${{ secrets.ALICE2_KS_ALIAS }}
+      ALICE2_KS_KEY_PASSWORD: ${{ secrets.ALICE2_KS_KEY_PASSWORD }}
+
+    steps:
+      - name: Код
+        uses: actions/checkout@v4
+
+      - name: Проверка бэкенда (sh -n)
+        run: |
+          for f in speaker/*.sh; do
+            sh -n "$f" && echo "ok  $f"
+          done
+
+      - name: JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          # пакет 'tools' удалён из репозитория SDK и валит sdkmanager;
+          # ставим только лицензии — платформа/build-tools Gradle докачает сам
+          packages: ''
+
+      - name: Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Keystore из секретов
+        if: env.HAS_KEYSTORE == 'true'
+        run: |
+          mkdir -p keystore
+          printf '%s' "$ALICE2_KEYSTORE_B64" | base64 -d > keystore/alice2.jks
+          test -s keystore/alice2.jks && echo "keystore восстановлен ($(wc -c < keystore/alice2.jks) байт)"
+
+      - name: Сборка release APK
+        run: ./gradlew assembleRelease --stacktrace
+
+      - name: Переименовать APK
+        run: |
+          cp app/build/outputs/apk/release/app-release.apk \
+             "Alice-App-${GITHUB_REF_NAME#v}.apk"
+          ls -la Alice-App-*.apk
+
+      - name: Проверка подписи
+        if: env.HAS_KEYSTORE == 'true'
+        run: |
+          APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
+          "$APKSIGNER" verify --verbose "Alice-App-${GITHUB_REF_NAME#v}.apk"
+          "$APKSIGNER" print-certs "Alice-App-${GITHUB_REF_NAME#v}.apk" | head -5
+
+      - name: APK — артефакт
+        uses: actions/upload-artifact@v4
+        with:
+          name: Alice-App-${{ github.ref_name }}
+          path: Alice-App-*.apk
+          if-no-files-found: error
+
+      - name: Релиз
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: Alice-App-*.apk
+          generate_release_notes: true
