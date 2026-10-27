@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Alice-App — панель для Яндекс Станции Лайт</title>
+<style>
+  :root { --bg:#0b1016; --card:#141b23; --tx:#e8edf2; --mut:#93a1b0; --acc:#0a84ff; }
+  * { box-sizing:border-box; margin:0 }
+  body { background:var(--bg); color:var(--tx); font:16px/1.6 system-ui,-apple-system,Roboto,sans-serif }
+  .wrap { max-width:880px; margin:0 auto; padding:48px 20px 80px }
+  .badge { display:inline-block; background:#12283f; color:#7cc0ff; border:1px solid #1d3d5c; border-radius:999px; padding:4px 14px; font-size:13px; font-weight:600 }
+  h1 { font-size:44px; letter-spacing:-1px; margin:18px 0 10px }
+  h2 { font-size:26px; margin:44px 0 12px }
+  p { color:var(--mut) }
+  a { color:#7cc0ff; text-decoration:none } a:hover { text-decoration:underline }
+  .card { background:var(--card); border:1px solid #223040; border-radius:20px; padding:22px 24px; margin:14px 0 }
+  .btn { display:inline-block; background:var(--acc); color:#fff; font-weight:600; border-radius:999px; padding:12px 26px; margin:6px 10px 6px 0 }
+  .btn.ghost { background:transparent; border:1px solid #2b3d50; color:#7cc0ff }
+  code, pre { background:#0d141b; border:1px solid #223040; border-radius:12px; font:13px/1.6 ui-monospace,monospace }
+  code { padding:2px 8px }
+  pre { padding:16px 18px; overflow-x:auto; color:#c8d6e2 }
+  table { border-collapse:collapse; width:100%; font-size:14.5px }
+  td, th { text-align:left; padding:8px 12px; border-bottom:1px solid #223040; vertical-align:top }
+  th { color:var(--mut); font-weight:600 }
+  .feat { display:grid; grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap:12px }
+  .feat .card { margin:0 }
+  .feat b { display:block; margin-bottom:4px }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<span class="badge">v2.0.1 · own-a-little-piece</span>
+<h1>Alice-App</h1>
+<p>Гайд: как подружить Яндекс Станцию Лайт с Alice-App — нативная Android-панель на Jetpack Compose (Material 3 Expressive): свет RGB на кольцах колонки, звук, пакеты, USB-OTG, консоль и журнал событий.</p>
+
+<p style="margin-top:20px">
+<a class="btn" href="https://github.com/bitplugg/Alice-App/releases/latest">⬇ Скачать APK</a>
+<a class="btn ghost" href="https://github.com/bitplugg/Alice-App">GitHub-репозиторий</a>
+</p>
+
+<h2>Что умеет</h2>
+<div class="feat">
+  <div class="card"><b>💡 Свет</b>Заливка 3 LED-колец любым цветом, палитра, hue-слайдер, яркость, зоны (все / 1 / 2 / 3), «погасить», анимации прошивки.</div>
+  <div class="card"><b>📦 Пакеты</b>Поиск, установка, удаление через yse, журнал установки.</div>
+  <div class="card"><b>🔊 Звук</b>Файлы /data/sounds, потоки по URL, громкость, чайм при включении.</div>
+  <div class="card"><b>🔌 USB / OTG</b>Host-режим, автозапуск OTG, диски, звуковые карты, маршрут звука (колонка ↔ USB-аудио).</div>
+  <div class="card"><b>🖥 Система</b>Аптайм, память, диск, root, ADB/SSH, OTA; логи dmesg/yse/api; reboot.</div>
+  <div class="card"><b>⌨ Консоль</b>shell на колонке и на телефоне (Shizuku, uid shell).</div>
+  <div class="card"><b>🔔 Журнал событий</b>Опрос: 5 с открытая панель / 15 мин фон (WorkManager). Оффлайн, USB, пакеты → уведомления, без сервера.</div>
+  <div class="card"><b>🧩 Виджеты</b>Glance: LED-палитра + «погасить», громкость, кнопки-ссылки на вкладки.</div>
+  <div class="card"><b>🔄 Автообновление</b>Проверка GitHub Releases: скачивание через DownloadManager → системный установщик.</div>
+</div>
+
+<h2>Установка — 4 шага</h2>
+
+<div class="card">
+<b>Шаг 1 · SSH на колонку</b>
+<pre>ssh -p 2222 root@192.168.1.20</pre>
+<p>«192.168.1.20» условно — поправь на свой IP Станции Лайт. Брать IP: смотри в настройках роутера v1-панели или в дампе DHCP.</p>
+</div>
+
+<div class="card">
+<b>Шаг 2 · Поставить бэкенд</b>
+На колонке (из корня репозитория):
+<pre>sh speaker/install.sh
+mkdir -p /data/opt/alice/cgi-bin
+cp speaker/api.sh /data/opt/alice/cgi-bin/
+cp speaker/lighttpd.conf speaker/S96alice /data/opt/alice/
+/data/opt/alice/S96alice start</pre>
+<p>lighttpd слушает порт <code>8080</code>.</p>
+</div>
+
+<div class="card">
+<b>Шаг 3 · Установить APK</b>
+<p>Скачай <a href="https://github.com/bitplugg/Alice-App/releases/latest">последний APK</a> на телефон и установи (Android 10+; разрешить установку из браузера/файлов).</p>
+
+</div>
+
+<div class="card">
+<b>Шаг 4 · Подключить</b>
+<p>Приложение → онбординг: IP колонки → «Подключиться» → (PIN не обязателен — панель сама откроется; можно задать PIN, чтобы закрыть панель). Всё.</p>
+</div>
+
+<h2>Схема работы</h2>
+<div class="card">
+<table>
+<tr><th>Компонент</th><th>Где</th><th>Что делает</th></tr>
+<tr><td>Android-приложение</td><td>телефон</td><td>UI на Compose; HTTP-клиент к CGI</td></tr>
+<tr><td>lighttpd + api.sh</td><td>колонка</td><td>CGI на 8080: LED/звук/yse/USB/sys/shell; журнал <code>events.log</code>; RGB-диагностика</td></tr>
+<tr><td>WorkManager</td><td>телефон</td><td>фоновый опрос 15 мин, события → уведомления</td></tr>
+<tr><td>Glance-виджеты</td><td>телефон</td><td>заливка цветов, громкость, ссылки на вкладки</td></tr>
+<tr><td>UpdateManager</td><td>телефон</td><td>проверка Releases, автоустановка</td></tr>
+</table>
+</div>
+
+<h2>API (скучный справочник)</h2>
+<div class="card">
+<pre>http://&lt;ip&gt;:8080/cgi-bin/api.sh?a=&lt;action&gt;</pre>
+<table>
+<tr><th>Группа</th><th>Действия</th></tr>
+<tr><td>ping / auth / setup / pin.*</td><td><code>ping</code> <code>auth</code> <code>setup</code> <code>pin.set</code> <code>pin.clear</code></td></tr>
+<tr><td>LED</td><td><code>led.get</code> <code>led.set</code> <code>led.off</code> <code>led.patterns</code> <code>led.play</code> <code>led.stop</code></td></tr>
+<tr><td>YSE</td><td><code>yse.list</code> <code>yse.search</code> <code>yse.install</code> <code>yse.remove</code> <code>yse.update</code> <code>yse.log</code></td></tr>
+<tr><td>Звук</td><td><code>sound.list</code> <code>sound.play</code> <code>sound.stop</code> <code>sound.vol</code> <code>chime.get</code> <code>chime.set</code></td></tr>
+<tr><td>USB</td><td><code>usb.status</code> <code>usb.mount</code> <code>usb.umount</code> <code>usb.route</code> <code>otg.status</code> <code>otg.start</code> <code>otg.auto</code> <code>otg.log</code></td></tr>
+<tr><td>Система</td><td><code>sys.info</code> <code>sys.ports</code> <code>sys.reboot</code> <code>log.dmesg</code> <code>log.tail</code> <code>shell</code></td></tr>
+<tr><td>v2</td><td><code>events.check</code> <code>events.tail</code> <code>events.clear</code> <code>rgb.diag</code> <code>rgb.test</code> <code>rgb.test.stop</code></td></tr>
+</table>
+<p>PIN не задан — панель открыта в домашней сети; задан — нужен <code>&amp;t=&lt;token&gt;</code>.</p>
+</div>
+
+<h2>FAQ</h2>
+<div class="card">
+<p><b>RGB не светит?</b><br>
+В Debug-экране нажми «Прогнать тест» — либо <code>a=rgb.test</code>: каждая зона мигнёт по red→green→blue. Если мигает по CGI, но не из приложения — проверь, что <code>api.sh</code> свежий (v1.2).</p>
+<p style="margin-top:14px"><b>v1 и v2 вместе живут?</b><br>
+Да — applicationId другой (<code>dev.bitplugg.aliceapp.v2</code>), ставятся рядом.</p>
+<p style="margin-top:14px"><b>Данные?</b><br>
+Всё локально: DataStore на телефоне, журнал /data/opt/alice на колонке. Никаких серверов и облаков.</p>
+</div>
+
+<p style="margin-top:40px; color:#5a7085">MIT · <a href="https://github.com/bitplugg/Alice-App">bitplugg/Alice-App</a></p>
+</div>
+</body>
+</html>
