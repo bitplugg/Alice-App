@@ -24,8 +24,8 @@ android {
     applicationId = "dev.bitplugg.aliceapp.v2"
     minSdk = 29
     targetSdk = 36
-    versionCode = 204
-    versionName = "2.0.4"
+    versionCode = 205
+    versionName = "2.0.5"
     vectorDrawables.useSupportLibrary = true
   }
 

@@ -479,6 +479,21 @@ rgb.test.stop)
   for zz in 1 2 3; do for cc in red green blue; do echo 0 > /sys/class/leds/micro:$cc:ring$zz/brightness 2>/dev/null; done; done
   ok '"stopped":1';;
 
+bt.status)
+  st=$(echo -e "show\nquit" | bluetoothctl 2>/dev/null)
+  disc=$(echo "$st" | sed -n 's/.*Discoverable: \([a-z]*\).*/\1/p' | head -1)
+  pair=$(echo "$st" | sed -n 's/.*Pairable: \([a-z]*\).*/\1/p' | head -1)
+  prw=$(echo "$st" | sed -n 's/.*Devices: \(.*\)/\1/p')
+  echo "{\"ok\":1,\"discoverable\":\"$disc\",\"pairable\":\"$pair\"}";;
+
+bt.on)
+  echo -e "power on\ndiscoverable-timeout 900\ndiscoverable on\npairable on\nquit" | bluetoothctl >/dev/null 2>&1
+  ok '"bluetooth":"discoverable_2min"';;
+
+bt.off)
+  echo -e "discoverable off\npairable off\nquit" | bluetoothctl >/dev/null 2>&1
+  ok '"bluetooth":"off"';;
+
 *) err "unknown_action: $ACTION";;
 esac
 echo ""
